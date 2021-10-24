@@ -1,0 +1,52 @@
+---
+- hosts: all
+  gather_facts: no
+  become: true
+
+  tasks:
+  - name: Updates
+    apt:
+      upgrade: yes
+      update_cache: yes
+      cache_valid_time: 86400 #One day
+
+  - name: install wireguard
+    apt:
+      name: wireguard
+      state: present
+
+  - name: Send conf
+    synchronize:
+      src: ./vps_wg0.conf
+      dest: /etc/wireguard/wg0.conf
+
+  - name: send pubkey
+    synchronize:
+      src: ./vps_publickey
+      dest: /etc/wireguard/publickey
+
+  - name: modify ip forwarding config
+    shell: echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+
+  - name: enable ip forwarding
+    shell: sudo sysctl -p && sudo sysctl --system
+
+  - name: Enable and start wireguard
+    shell: sudo systemctl enable --now wg-quick@wg0
+
+  - name: send iptables script
+    synchronize:
+      src: ./iptables.sh
+      dest: /root/
+
+  - name: exec script
+    shell: chmod +x /root/iptables.sh && /root/iptables.sh
+
+  - name: persist iptables
+    apt:
+      name: netfilter-persistent
+      state: present
+
+  - name: enable persistant netfilter
+    shell: sudo netfilter-persistent save && sudo systemctl enable netfilter-persistent
+# apt-get install iptables-persistent do this manually
